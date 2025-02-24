@@ -102,6 +102,85 @@ def load_nuked_users():
         return []
 
 
+# Function: Send an image with the first interaction (now with multiple images per branch)
+async def send_image(message, branch_name):
+    """
+    Sends an image corresponding to the branch triggering the interaction.
+
+    Args:
+        message: The Discord message object.
+        branch_name: The name of the branch (e.g., 'gay_police', 'gay_army').
+    """
+    try:
+        # Define file paths for each branch's images (3 images per branch)
+        image_paths = {
+            "gay_police": [
+                "images/gay_police_1.png",
+                "images/gay_police_2.png",
+                "images/gay_police_3.png",
+            ],
+            "gay_army": [
+                "images/gay_army_1.png",
+                "images/gay_army_2.png",
+                "images/gay_army_3.png",
+            ],
+            "gayvie": [
+                "images/gayvie_1.png",
+                "images/gayvie_2.png",
+                "images/gayvie_3.png",
+            ],
+            "gay_airforce": [
+                "images/gay_airforce_1.png",
+                "images/gay_airforce_2.png",
+                "images/gay_airforce_3.png",
+            ],
+        }
+
+        # Randomly select an image for the given branch
+        selected_image = random.choice(image_paths[branch_name])
+
+        # Send the image as an attachment
+        file = discord.File(selected_image)
+        await message.channel.send(file=file)
+
+    except Exception as e:
+        print(f"Failed to send image for {branch_name}: {e}")
+
+
+# Function: Handle escalation and dynamic replies (with images)
+async def escalate_and_respond(user, message, sus_score):
+    global active_interactions
+
+    # Check if user is in active interactions
+    if user.id not in active_interactions:
+        active_interactions[user.id] = {"sus_score": 0, "timeout": None}
+
+    # Update sus score for this interaction (no multiplier here)
+    active_interactions[user.id]["sus_score"] += sus_score
+
+    # Determine response level based on total sus score in this interaction
+    total_sus_score = active_interactions[user.id]["sus_score"]
+
+    if total_sus_score < GAY_ARMY_NAVY_THRESHOLD:
+        result = await gay_police_interaction(user, message, active_interactions[user.id])
+        if result == "escalate":
+            await escalate_to_backup(user, message)
+
+    elif total_sus_score < GAY_AIRFORCE_THRESHOLD:
+        result = await gay_army_interaction(user, message, active_interactions[user.id])
+        if result == "full_attack":
+            await escalate_to_backup(user, message)
+        else:
+            result = await gayvie_interaction(user, message, active_interactions[user.id])
+            if result == "full_assault":
+                await escalate_to_backup(user, message)
+
+    elif total_sus_score >= GAY_AIRFORCE_THRESHOLD:
+        result = await gay_airforce_interaction(user, message, active_interactions[user.id])
+        if result == "final_strike":
+            await final_escalation(user, message)
+
+
 # Function: Final escalation (all branches working together)
 async def final_escalation(user, message):
     """
@@ -139,86 +218,6 @@ async def final_escalation(user, message):
     log_nuked_user(user.id, user.name, total_points)
 
 
-# Slash Command: Check if a specific user has been nuked (/Gyatt Team @user or /Gyatt Team Nuked)
-@slash.slash(name="GyattTeam", description="Check if a user has been nuked or show all nuked users.")
-async def gyatt_team(ctx: SlashContext, option: str):
-    """
-    Handles slash commands to check if a user has been nuked or to show all nuked users.
-    
-    Args:
-        ctx: The context of the slash command.
-        option: Either an @user mention or "Nuked" to show all records.
-    """
-    if option.lower() == "nuked":
-        # Show all nuked users
-        nuked_users = load_nuked_users()
-        if not nuked_users:
-            await ctx.send("No one has been nuked yet! 🌈")
-            return
-
-        response = "**List of Nuked Users:**\n"
-        for user in nuked_users:
-            response += f"- **{user['username']}** (ID: {user['id']}, Points: {user['points']:.2f})\n"
-        await ctx.send(response)
-
-    else:
-        # Check if a specific user has been nuked (option should be an @mention)
-        target_user_id = option.strip("<@!>")
-        nuked_users = load_nuked_users()
-        for user in nuked_users:
-            if user["id"] == target_user_id:
-                await ctx.send(
-                    f"**{user['username']}** has been nuked by the Gyatt_Team! Total Points: {user['points']:.2f} 🌈"
-                )
-                return
-
-        await ctx.send("That user has not been nuked yet! 🚨")
-
-
-# Slash Command: Add a new sus phrase dynamically (/GyattTeamAdd "comment" tally value)
-@slash.slash(name="GyattTeamAdd", description="Add a new sus phrase to the library with a tally value.")
-async def gyatt_team_add(ctx: SlashContext, comment: str, tally: float):
-    """
-    Adds a new sus phrase to the library dynamically.
-    
-    Args:
-        ctx: The context of the slash command.
-        comment: The sus phrase to be added.
-        tally: The point value for the sus phrase (must be between 0.1 and 15).
-    """
-    # Validate tally value
-    if tally <= 0 or tally > 15:
-        await ctx.send("🚨 Invalid tally value! It must be between 0.1 and 15.", hidden=True)
-        return
-
-    # Load existing sus phrases
-    try:
-        from library.sus_phrases import SUS_PHRASES
-    except ImportError:
-        await ctx.send("🚨 Failed to load sus phrases! Please check your configuration.", hidden=True)
-        return
-
-    # Check if the phrase already exists
-    if comment.lower() in SUS_PHRASES:
-        await ctx.send(f"🚨 The phrase '{comment}' already exists in the library!", hidden=True)
-        return
-
-    # Add the new phrase to SUS_PHRASES dynamically and update file content!
-    SUS_PHRASES[comment.lower()] = tally
-
-    try:
-        with open("library/sus_phrases.py", "w") as f:
-            f.write("SUS_PHRASES = {\n")
-            for phrase, value in SUS_PHRASES.items():
-                f.write(f'    "{phrase}": {value},\n')
-            f.write("}\n")
-        
-        await ctx.send(f"✅ Successfully added '{comment}' with a tally of {tally} to the sus library!")
-    
-    except Exception as e:
-        await ctx.send(f"🚨 Failed to update sus phrases file: {e}", hidden=True)
-
-
 # Event: On Ready (Bot Startup)
 @bot.event
 async def on_ready():
@@ -245,4 +244,3 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 if DISCORD_BOT_TOKEN is None:
     raise ValueError("DISCORD_BOT_TOKEN not found in environment variables.")
 bot.run(DISCORD_BOT_TOKEN)
-    
