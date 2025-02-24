@@ -1,5 +1,4 @@
-discord.py==2.3.2  # Core library for interacting with Discord's API
-discord-py-slash-command==4.2.1  # For handling slash commands
+discord.py==2.3.2  # Includes native support for slash commands
 python-dotenv==1.0.0  # For loading environment variables (e.g., bot tokens)
 aiohttp==3.8.4  # Required by discord.py for HTTP requests
 asyncio==3.4.3  # For asynchronous operations
