@@ -5,27 +5,33 @@ import asyncio
 from dotenv import load_dotenv  # For loading environment variables
 from calculations import calculate_final_sus_points  # Dynamic multiplier system
 from library.sus_phrases import calculate_susness
-from library.gay_police_responses import GAY_POLICE_FINAL_RESPONSES import GAY_POLICE_FINAL_RESPONSES
-from library.gay_army_responses import GAY_ARMY_FINAL_RESPONSES import GAY_POLICE_FINAL_RESPONSES
-from library.gayvie_responses import GAYVIE_FINAL_RESPONSES import 
-from library.gay_airforce_responses import GAY_AIRFORCE_FINAL_RESPONSES
+from library.gay_police_responses import GAY_POLICE_FINAL_RESPONSES, GAY_POLICE_ESCALATION_RESPONSES
+from library.gay_army_responses import GAY_ARMY_FINAL_RESPONSES, GAY_ARMY_ESCALATION_RESPONSES
+from library.gayvie_responses import GAYVIE_FINAL_RESPONSES, GAYVIE_ESCALATION_RESPONSES
+from library.gay_airforce_responses import GAY_AIRFORCE_FINAL_RESPONSES, GAY_AIRFORCE_ESCALATION_RESPONSES
 from bots.gay_police import gay_police_interaction
 from bots.gay_army import gay_army_interaction
 from bots.gayvie import gayvie_interaction
 from bots.gay_airforce import gay_airforce_interaction
 
+# Slash commands support
+from discord.ext import commands
+from discord_slash import SlashCommand, SlashContext
+
 # Load environment variables (for local dev)
 load_dotenv()
 
-# Discord bot intents
+# Discord bot setup with slash command support
 intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True
 
-client = discord.Client(intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
+slash = SlashCommand(bot, sync_commands=True)  # Enables slash commands
 
-# Persistent tally tracking file
+# Persistent tally tracking files
 POLICE_RECORD_FILE = "police_record.txt"
+NUKED_RECORD_FILE = "nuked.py"
 
 # Active user interaction tracking
 active_interactions = {}  # {user_id: {"sus_score": int, "timeout": asyncio.Task}}
@@ -59,47 +65,41 @@ def save_police_records(records):
             f.write(f"{user_id}:{tally:.2f}\n")
 
 
-# Function: Handle escalation and dynamic replies
-async def escalate_and_respond(user, message, sus_score):
-    global active_interactions
+# Helper function: Log users nuked by the final attack into a file (updates if already exists)
+def log_nuked_user(user_id, username, total_points):
+    nuked_users = load_nuked_users()
+    updated = False
 
-    # Check if user is in active interactions
-    if user.id not in active_interactions:
-        active_interactions[user.id] = {"sus_score": 0, "timeout": None}
+    # Update existing record if user already exists in nuked list
+    for user in nuked_users:
+        if user["id"] == str(user_id):
+            user["points"] = total_points  # Update their total points
+            updated = True
 
-    # Update sus score for this interaction (no multiplier here)
-    active_interactions[user.id]["sus_score"] += sus_score
+    # If user is new, add them to the list
+    if not updated:
+        nuked_users.append({"id": str(user_id), "username": username, "points": total_points})
 
-    # Determine response level based on total sus score in this interaction
-    total_sus_score = active_interactions[user.id]["sus_score"]
-
-    if total_sus_score < GAY_ARMY_NAVY_THRESHOLD:
-        result = await gay_police_interaction(user, message, active_interactions[user.id])
-        if result == "escalate":
-            await escalate_to_backup(user, message)
-
-    elif total_sus_score < GAY_AIRFORCE_THRESHOLD:
-        result = await gay_army_interaction(user, message, active_interactions[user.id])
-        if result == "full_attack":
-            await escalate_to_backup(user, message)
-        else:
-            result = await gayvie_interaction(user, message, active_interactions[user.id])
-            if result == "full_assault":
-                await escalate_to_backup(user, message)
-
-    elif total_sus_score >= GAY_AIRFORCE_THRESHOLD:
-        result = await gay_airforce_interaction(user, message, active_interactions[user.id])
-        if result == "final_strike":
-            await final_escalation(user, message)
+    # Write back to file
+    try:
+        with open(NUKED_RECORD_FILE, "w") as f:
+            for user in nuked_users:
+                f.write(f"{user['id']}:{user['username']}:{user['points']:.2f}\n")
+    except Exception as e:
+        print(f"Failed to log nuked user: {e}")
 
 
-# Function: Handle escalation to backup (Gay Army/Navy)
-async def escalate_to_backup(user, message):
-    navy_response = random.choice(GAYVIE_ESCALATION_RESPONSES)
-    army_response = random.choice(GAY_ARMY_ESCALATION_RESPONSES)
-    
-    await message.channel.send(f"⚓ Gay Navy incoming! {navy_response} {user.mention}")
-    await message.channel.send(f"🚨 Gay Army deployed! {army_response} {user.mention}")
+# Helper function: Load nuked users from file
+def load_nuked_users():
+    try:
+        with open(NUKED_RECORD_FILE, "r") as f:
+            nuked_users = []
+            for line in f.readlines():
+                user_id, username, points = line.strip().split(":")
+                nuked_users.append({"id": user_id, "username": username, "points": float(points)})
+            return nuked_users
+    except FileNotFoundError:
+        return []
 
 
 # Function: Final escalation (all branches working together)
@@ -111,7 +111,7 @@ async def final_escalation(user, message):
         user: The user being targeted.
         message: The Discord message object.
     """
-    # Responses from each branch
+    # Responses from each branch (now using FINAL_RESPONSES)
     police_response = random.choice(GAY_POLICE_FINAL_RESPONSES)
     army_response = random.choice(GAY_ARMY_FINAL_RESPONSES)
     navy_response = random.choice(GAYVIE_FINAL_RESPONSES)
@@ -126,58 +126,110 @@ async def final_escalation(user, message):
     await asyncio.sleep(1)
     await message.channel.send(f"✈️ Gay Airforce: {airforce_response} {user.mention}")
 
-    # Final bombastic declaration
+    # Final bombastic declaration and log the user as nuked!
     await asyncio.sleep(1)
     await message.channel.send(
         f"🌈 ALL BRANCHES DEPLOYED! The Gyatt_Team has unleashed its full power on {user.mention}! "
         f"Susness eradicated! 💥"
     )
 
+    # Log the user as nuked in the record file (using their total points from police records)
+    police_records = load_police_records()
+    total_points = police_records.get(str(user.id), 0)
+    log_nuked_user(user.id, user.name, total_points)
 
-# Function: End interaction after timeout period (if no response from user)
-async def end_interaction_after_timeout(user):
-    global active_interactions
 
-    # Wait for 60 seconds of inactivity
-    await asyncio.sleep(INTERACTION_TIMEOUT)
+# Slash Command: Check if a specific user has been nuked (/Gyatt Team @user or /Gyatt Team Nuked)
+@slash.slash(name="GyattTeam", description="Check if a user has been nuked or show all nuked users.")
+async def gyatt_team(ctx: SlashContext, option: str):
+    """
+    Handles slash commands to check if a user has been nuked or to show all nuked users.
+    
+    Args:
+        ctx: The context of the slash command.
+        option: Either an @user mention or "Nuked" to show all records.
+    """
+    if option.lower() == "nuked":
+        # Show all nuked users
+        nuked_users = load_nuked_users()
+        if not nuked_users:
+            await ctx.send("No one has been nuked yet! 🌈")
+            return
 
-    # Check if user is still in active interactions
-    if user.id in active_interactions:
-        # Get the user's current conversation sus score
-        current_sus_points = active_interactions[user.id]["sus_score"]
+        response = "**List of Nuked Users:**\n"
+        for user in nuked_users:
+            response += f"- **{user['username']}** (ID: {user['id']}, Points: {user['points']:.2f})\n"
+        await ctx.send(response)
 
-        # Load police records from file
-        police_records = load_police_records()
+    else:
+        # Check if a specific user has been nuked (option should be an @mention)
+        target_user_id = option.strip("<@!>")
+        nuked_users = load_nuked_users()
+        for user in nuked_users:
+            if user["id"] == target_user_id:
+                await ctx.send(
+                    f"**{user['username']}** has been nuked by the Gyatt_Team! Total Points: {user['points']:.2f} 🌈"
+                )
+                return
 
-        # Get the user's existing total tally from police records (default to 0 if not found)
-        total_sus_points_on_record = police_records.get(str(user.id), 0)
+        await ctx.send("That user has not been nuked yet! 🚨")
 
-        # Calculate the final sus points using the multiplier system
-        final_sus_points = calculate_final_sus_points(current_sus_points, total_sus_points_on_record)
 
-        # Update the user's total tally in police records
-        police_records[str(user.id)] = total_sus_points_on_record + final_sus_points
+# Slash Command: Add a new sus phrase dynamically (/GyattTeamAdd "comment" tally value)
+@slash.slash(name="GyattTeamAdd", description="Add a new sus phrase to the library with a tally value.")
+async def gyatt_team_add(ctx: SlashContext, comment: str, tally: float):
+    """
+    Adds a new sus phrase to the library dynamically.
+    
+    Args:
+        ctx: The context of the slash command.
+        comment: The sus phrase to be added.
+        tally: The point value for the sus phrase (must be between 0.1 and 15).
+    """
+    # Validate tally value
+    if tally <= 0 or tally > 15:
+        await ctx.send("🚨 Invalid tally value! It must be between 0.1 and 15.", hidden=True)
+        return
 
-        # Save updated records back to file
-        save_police_records(police_records)
+    # Load existing sus phrases
+    try:
+        from library.sus_phrases import SUS_PHRASES
+    except ImportError:
+        await ctx.send("🚨 Failed to load sus phrases! Please check your configuration.", hidden=True)
+        return
 
-        # Remove user from active interactions
-        del active_interactions[user.id]
+    # Check if the phrase already exists
+    if comment.lower() in SUS_PHRASES:
+        await ctx.send(f"🚨 The phrase '{comment}' already exists in the library!", hidden=True)
+        return
 
-        print(f"Interaction with {user.name} ended due to timeout. Final sus points added: {final_sus_points:.2f}")
+    # Add the new phrase to SUS_PHRASES dynamically and update file content!
+    SUS_PHRASES[comment.lower()] = tally
+
+    try:
+        with open("library/sus_phrases.py", "w") as f:
+            f.write("SUS_PHRASES = {\n")
+            for phrase, value in SUS_PHRASES.items():
+                f.write(f'    "{phrase}": {value},\n')
+            f.write("}\n")
+        
+        await ctx.send(f"✅ Successfully added '{comment}' with a tally of {tally} to the sus library!")
+    
+    except Exception as e:
+        await ctx.send(f"🚨 Failed to update sus phrases file: {e}", hidden=True)
 
 
 # Event: On Ready (Bot Startup)
-@client.event
+@bot.event
 async def on_ready():
-    print(f"We have logged in as {client.user}")
+    print(f"We have logged in as {bot.user}")
 
 
 # Event: On Message (Message Handling)
-@client.event
+@bot.event
 async def on_message(message):
     # Ignore messages from the bot itself or empty messages
-    if message.author == client.user or not message.content.strip():
+    if message.author == bot.user or not message.content.strip():
         return
 
     # Check for sus phrases and calculate susness score (0.1–15 range per phrase)
@@ -192,4 +244,5 @@ async def on_message(message):
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 if DISCORD_BOT_TOKEN is None:
     raise ValueError("DISCORD_BOT_TOKEN not found in environment variables.")
-client.run(DISCORD_BOT_TOKEN)
+bot.run(DISCORD_BOT_TOKEN)
+    
