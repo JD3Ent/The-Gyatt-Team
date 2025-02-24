@@ -1,37 +1,42 @@
-import discord
 import os
-from dotenv import load_dotenv
+import discord
 from discord.ext import commands
-from discord_slash import SlashCommand, SlashContext
+from discord import app_commands  # For native slash commands
+from dotenv import load_dotenv
 from gyatt_logic import calculate_susness, escalate_and_respond, add_sus_phrase, remove_sus_phrase, list_sus_phrases
 from flask import Flask
 import threading
 
-# Create a Flask app
+# Flask Web Server Setup
 app = Flask(__name__)
 
 @app.route("/")
 def home():
     return "Bot is running!"
 
-# Function to run the web server
 def run_server():
-    app.run(host="0.0.0.0", port=8080)
+    # Get the PORT from environment variables (default to 8080 if not set)
+    port = int(os.getenv("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
 
 # Start the web server in a separate thread
 threading.Thread(target=run_server).start()
 
-# Load environment variables (for local dev)
+# Load environment variables (for local development or production)
 load_dotenv()
+DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+if DISCORD_BOT_TOKEN is None:
+    raise ValueError("DISCORD_BOT_TOKEN not found in environment variables.")
 
-# Discord bot setup with slash command support
+# Discord Bot Setup
 intents = discord.Intents.default()
 intents.messages = True
-intents.message_content = True
+intents.message_content = True  # Required for reading message content
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-slash = SlashCommand(bot, sync_commands=True)  # Enables slash commands
 
+# Slash Command Tree (for native slash commands)
+tree = bot.tree
 
 @bot.event
 async def on_ready():
@@ -39,7 +44,12 @@ async def on_ready():
     Event triggered when the bot is ready and connected to Discord.
     """
     print(f"We have logged in as {bot.user}")
-
+    # Sync slash commands with Discord
+    try:
+        await tree.sync()
+        print("Slash commands synced successfully!")
+    except Exception as e:
+        print(f"Error syncing slash commands: {e}")
 
 @bot.event
 async def on_message(message):
@@ -57,51 +67,44 @@ async def on_message(message):
     if sus_score > 0:
         await escalate_and_respond(message.author, message, sus_score)
 
-
 # Slash Command: Add a New Sus Phrase
-@slash.slash(name="add_sus_phrase", description="Add a new phrase to the sus library.")
-async def add_sus_phrase_command(ctx: SlashContext, phrase: str, score: float):
+@tree.command(name="add_sus_phrase", description="Add a new phrase to the sus library.")
+async def add_sus_phrase_command(interaction: discord.Interaction, phrase: str, score: float):
     """
     Adds a new phrase to the SUS_PHRASES library via a slash command.
 
     Args:
-        ctx (SlashContext): The context of the slash command.
+        interaction (discord.Interaction): The context of the slash command.
         phrase (str): The new phrase to add.
         score (float): The susness score to assign to the phrase.
     """
     response = add_sus_phrase(phrase, score)  # Delegated to gyatt_logic.py
-    await ctx.send(response)
-
+    await interaction.response.send_message(response)
 
 # Slash Command: Remove a Sus Phrase
-@slash.slash(name="remove_sus_phrase", description="Remove a phrase from the sus library.")
-async def remove_sus_phrase_command(ctx: SlashContext, phrase: str):
+@tree.command(name="remove_sus_phrase", description="Remove a phrase from the sus library.")
+async def remove_sus_phrase_command(interaction: discord.Interaction, phrase: str):
     """
     Removes a phrase from the SUS_PHRASES library via a slash command.
 
     Args:
-        ctx (SlashContext): The context of the slash command.
+        interaction (discord.Interaction): The context of the slash command.
         phrase (str): The phrase to remove.
     """
     response = remove_sus_phrase(phrase)  # Delegated to gyatt_logic.py
-    await ctx.send(response)
-
+    await interaction.response.send_message(response)
 
 # Slash Command: List All Sus Phrases
-@slash.slash(name="list_sus_phrases", description="List all phrases in the sus library.")
-async def list_sus_phrases_command(ctx: SlashContext):
+@tree.command(name="list_sus_phrases", description="List all phrases in the sus library.")
+async def list_sus_phrases_command(interaction: discord.Interaction):
     """
     Lists all phrases in the SUS_PHRASES library via a slash command.
 
     Args:
-        ctx (SlashContext): The context of the slash command.
+        interaction (discord.Interaction): The context of the slash command.
     """
     response = list_sus_phrases()  # Delegated to gyatt_logic.py
-    await ctx.send(response)
-
+    await interaction.response.send_message(response)
 
 # Run the bot using the token from environment variables (GitHub Secrets or .env file)
-DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-if DISCORD_BOT_TOKEN is None:
-    raise ValueError("DISCORD_BOT_TOKEN not found in environment variables.")
 bot.run(DISCORD_BOT_TOKEN)
