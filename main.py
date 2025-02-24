@@ -4,6 +4,22 @@ from dotenv import load_dotenv
 from discord.ext import commands
 from discord_slash import SlashCommand, SlashContext
 from gyatt_logic import calculate_susness, escalate_and_respond, add_sus_phrase, remove_sus_phrase, list_sus_phrases
+from flask import Flask
+import threading
+
+# Create a Flask app
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Bot is running!"
+
+# Function to run the web server
+def run_server():
+    app.run(host="0.0.0.0", port=8080)
+
+# Start the web server in a separate thread
+threading.Thread(target=run_server).start()
 
 # Load environment variables (for local dev)
 load_dotenv()
