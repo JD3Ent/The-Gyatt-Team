@@ -3,6 +3,7 @@ import spacy  # Import spaCy for NLP
 import discord
 import asyncio
 from calculations import calculate_final_sus_points  # Dynamic multiplier system
+from library.sus_phrases import SUS_PHRASES  # Import sus phrases dynamically
 from library.gay_police_responses import GAY_POLICE_FINAL_RESPONSES, GAY_POLICE_ESCALATION_RESPONSES
 from library.gay_army_responses import GAY_ARMY_FINAL_RESPONSES, GAY_ARMY_ESCALATION_RESPONSES
 from library.gayvie_responses import GAYVIE_FINAL_RESPONSES, GAYVIE_ESCALATION_RESPONSES
@@ -19,14 +20,6 @@ nlp = spacy.load("en_core_web_md")
 POLICE_RECORD_FILE = "police_record.txt"
 NUKED_RECORD_FILE = "nuked.py"
 
-# SUS_PHRASES dictionary (can be dynamically updated via slash commands)
-SUS_PHRASES = {
-    "I like your hair": 0.5,
-    "you're cute": 1.5,
-    "come here daddy": 4.5,
-    "rail me daddy": 13,
-}
-
 # Thresholds for escalation
 GAY_POLICE_THRESHOLD = 5
 GAY_ARMY_NAVY_THRESHOLD = 10
@@ -37,24 +30,38 @@ GAY_AIRFORCE_THRESHOLD = 15
 def calculate_susness(message):
     """
     Calculates susness using semantic similarity with spaCy.
+    Handles long messages by splitting them into sentences.
 
     Args:
         message (str): The user's input message.
 
     Returns:
-        float: The highest susness score based on semantic similarity.
+        float: The total susness score based on semantic similarity.
     """
+    # Split the message into sentences using spaCy
     user_doc = nlp(message.lower())
+    sentences = [sent.text for sent in user_doc.sents]  # Extract sentences
+
     sus_score = 0
 
-    for phrase, score in SUS_PHRASES.items():
-        phrase_doc = nlp(phrase.lower())
-        similarity = user_doc.similarity(phrase_doc)  # Semantic similarity calculation
+    # Analyze each sentence for susness
+    for sentence in sentences:
+        sentence_doc = nlp(sentence)
+        sentence_score = 0
 
-        if similarity >= 0.8:  # Threshold for semantic similarity (adjustable)
-            sus_score = max(sus_score, score)  # Take the highest matching score
+        # Compare the sentence with each phrase in SUS_PHRASES
+        for phrase, score in SUS_PHRASES.items():
+            phrase_doc = nlp(phrase.lower())
+            similarity = sentence_doc.similarity(phrase_doc)  # Semantic similarity calculation
+
+            if similarity >= 0.8:  # Threshold for semantic similarity (adjustable)
+                sentence_score = max(sentence_score, score)  # Take the highest matching score
+
+        # Add the highest score from this sentence to the total score
+        sus_score += sentence_score
 
     return sus_score
+    
 
 
 ### Escalation Logic ###
@@ -145,4 +152,45 @@ async def send_image(message, branch_name):
         message: The Discord message object.
         branch_name: The name of the branch (e.g., 'gay_police', 'gay_army').
     """
-    
+    try:
+        # Define file paths for each branch's images (3 images per branch)
+        image_paths = {
+            "gay_police": [
+                "images/gay_police_1.png",
+                "images/gay_police_2.png",
+                "images/gay_police_3.png",
+            ],
+            "gay_army": [
+                "images/gay_army_1.png",
+                "images/gay_army_2.png",
+                "images/gay_army_3.png",
+            ],
+            "gayvie": [
+                "images/gayvie_1.png",
+                "images/gayvie_2.png",
+                "images/gayvie_3.png",
+            ],
+            "gay_airforce": [
+                "images/gay_airforce_1.png",
+                "images/gay_airforce_2.png",
+                "images/gay_airforce_3.png",
+            ],
+        }
+
+        # Check if the branch name exists in the image paths
+        if branch_name not in image_paths:
+            print(f"Branch '{branch_name}' does not have any associated images.")
+            return
+
+        # Randomly select an image for the given branch
+        selected_image = random.choice(image_paths[branch_name])
+
+        # Send the image as an attachment
+        file = discord.File(selected_image)
+        await message.channel.send(file=file)
+
+    except FileNotFoundError:
+        print(f"Image file not found for branch '{branch_name}'. Ensure all images are in the correct directory.")
+    except Exception as e:
+        print(f"Failed to send image for {branch_name}: {e}")
+        
