@@ -5,7 +5,7 @@ from library.gay_army_responses import (
     GAY_ARMY_FINAL_RESPONSES,
 )
 from calculations import calculate_final_sus_points
-from gyatt_team import load_police_records, save_police_records, log_nuked_user
+from gyatt_logic import load_police_records, save_police_records, log_nuked_user
 
 
 async def gay_army_interaction(user, message, interaction_data):
