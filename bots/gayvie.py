@@ -1,11 +1,7 @@
 import random
-from library.gayvie_responses import (
-    GAYVIE_RESPONSES,
-    GAYVIE_ESCALATION_RESPONSES,
-    GAYVIE_FINAL_RESPONSES,
-)
-from calculations import calculate_final_sus_points
-from gyatt_logic import load_police_records, save_police_records, log_nuked_user
+import library.gayvie_responses
+import calculations
+import gyatt_logic
 
 
 async def gayvie_interaction(user, message, interaction_data):
