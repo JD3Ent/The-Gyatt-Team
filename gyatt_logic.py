@@ -47,17 +47,14 @@ def calculate_susness(message):
     """
     Calculates susness using semantic similarity with spaCy.
     Handles long messages by splitting them into sentences.
-
     Args:
         message (str): The user's input message.
-
     Returns:
         float: The total susness score based on semantic similarity.
     """
     # Split the message into sentences using spaCy
     user_doc = nlp(message.lower())
     sentences = [sent.text for sent in user_doc.sents]  # Extract sentences
-
     sus_score = 0
 
     # Analyze each sentence for susness
@@ -66,10 +63,9 @@ def calculate_susness(message):
         sentence_score = 0
 
         # Compare the sentence with each phrase in SUS_PHRASES
-        for phrase, score in SUS_PHRASES.items():
+        for phrase, score in library.sus_phrases.SUS_PHRASES.items():
             phrase_doc = nlp(phrase.lower())
             similarity = sentence_doc.similarity(phrase_doc)  # Semantic similarity calculation
-
             if similarity >= 0.8:  # Threshold for semantic similarity (adjustable)
                 sentence_score = max(sentence_score, score)  # Take the highest matching score
 
@@ -77,7 +73,6 @@ def calculate_susness(message):
         sus_score += sentence_score
 
     return sus_score
-    
 
 
 ### Escalation Logic ###
