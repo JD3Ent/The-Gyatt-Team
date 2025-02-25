@@ -13,6 +13,9 @@ import bots.gay_army
 import bots.gayvie 
 import bots.gay_airforce 
 
+# Initialize active_interactions
+active_interactions = {}
+
 def add_sus_phrase(phrase, score):
     """Adds a new sus phrase to the SUS_PHRASES dictionary."""
     library.sus_phrases.SUS_PHRASES[phrase] = score
