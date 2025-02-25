@@ -1,11 +1,7 @@
 import random
-from library.gay_army_responses import (
-    GAY_ARMY_RESPONSES,
-    GAY_ARMY_ESCALATION_RESPONSES,
-    GAY_ARMY_FINAL_RESPONSES,
-)
-from calculations import calculate_final_sus_points
-from gyatt_logic import load_police_records, save_police_records, log_nuked_user
+import library.gay_army_responses
+import calculations
+import gyatt_logic 
 
 
 async def gay_army_interaction(user, message, interaction_data):
