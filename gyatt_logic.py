@@ -13,6 +13,22 @@ import bots.gay_army
 import bots.gayvie 
 import bots.gay_airforce 
 
+def add_sus_phrase(phrase, score):
+    """Adds a new sus phrase to the SUS_PHRASES dictionary."""
+    library.sus_phrases.SUS_PHRASES[phrase] = score
+    return f"Phrase '{phrase}' added successfully with score {score}!"
+
+def remove_sus_phrase(phrase):
+    """Removes a sus phrase from the SUS_PHRASES dictionary."""
+    if phrase in library.sus_phrases.SUS_PHRASES:
+        del library.sus_phrases.SUS_PHRASES[phrase]
+        return f"Phrase '{phrase}' removed successfully!"
+    return f"Phrase '{phrase}' not found!"
+
+def list_sus_phrases():
+    """Returns the current list of sus phrases."""
+    return "\n".join([f"{phrase}: {score}" for phrase, score in library.sus_phrases.SUS_PHRASES.items()])
+
 # Load spaCy's medium-sized English model
 nlp = spacy.load("en_core_web_md")
 
