@@ -1,6 +1,7 @@
 import os
 import discord
 from discord.ext import commands
+from discord import app_commands
 from dotenv import load_dotenv
 from gyatt_logic import calculate_susness, escalate_and_respond, add_sus_phrase, remove_sus_phrase, list_sus_phrases
 from flask import Flask
@@ -35,7 +36,6 @@ else:
     except ValueError:
         raise ValueError("APPLICATION_ID must be an integer. Please check your Render environment or .env file.")
 
-
 # Discord Bot Setup
 intents = discord.Intents.default()
 intents.messages = True
@@ -58,25 +58,23 @@ def run_server():
 # Start the web server in a separate thread
 threading.Thread(target=run_server, daemon=True).start()
 
-async def bot_main():
-    """Main function to run the Discord bot."""
-    async with bot:
-        # Sync slash commands to the specified guild
-        try:
-            guild = discord.Object(id=GUILD_ID) # Now using GUILD_ID from environment variables
-            tree.copy_global_to(guild=guild)
-            synced = await tree.sync(guild=guild)
-
-            print(f"Successfully synced {len(synced)} commands to guild {GUILD_ID}")
-        except Exception as e:
-            print(f"Error syncing slash commands to guild {GUILD_ID}: {e}")
-
-        await bot.start(DISCORD_BOT_TOKEN)
+# Remove bot_main function
+# Remove the asyncio.run(bot_main()) from if __name__ == "__main__":
 
 @bot.event
 async def on_ready():
     """Event triggered when the bot is ready."""
     print(f"We have logged in as {bot.user}")
+
+    # Sync slash commands to the specified guild
+    try:
+        guild = discord.Object(id=GUILD_ID) # Now using GUILD_ID from environment variables
+        # tree.copy_global_to(guild=guild) # This line is often problematic
+        synced = await tree.sync(guild=guild)
+
+        print(f"Successfully synced {len(synced)} commands to guild {GUILD_ID}")
+    except Exception as e:
+        print(f"Error syncing slash commands to guild {GUILD_ID}: {e}")
 
 @bot.event
 async def on_message(message):
@@ -117,4 +115,4 @@ if __name__ == "__main__":
     threading.Thread(target=run_server, daemon=True).start()
     
     # Run the Discord bot in the main thread
-    asyncio.run(bot_main())
+    bot.run(DISCORD_BOT_TOKEN) # call bot.run directly
