@@ -238,9 +238,8 @@ GAY_POLICE_ESCALATION_RESPONSES = [
     "🌈 Rainbow lights flashing! You’ve been pulled over for reckless thirsting while double-fisting glazed donuts in public, {user}.",
     "🔎 The Gay Detectives have found sprinkles on your chest and powdered sugar on your thighs. Care to explain what you were doing with those donuts in private, {user}?",
     "🚨 Code Rainbow activated! Your susness has earned you a one-way ticket to the 12-inch vibrating nightstick treatment. Assume the position immediately, {user}!",
-    
+]  
         
-
 # Gay Police Final Attack Responses
 GAY_POLICE_FINAL_RESPONSES = [
     "🚨 THIS IS IT, {user}! The Gay Police are conducting a full cavity search with our 12-inch vibrating nightsticks. Assume the position immediately!",
