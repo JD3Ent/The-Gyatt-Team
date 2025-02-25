@@ -2,7 +2,7 @@ import random
 import spacy  # Import spaCy for NLP
 import discord
 import asyncio
-import calculations   # Dynamic multiplier system
+from calculations import calculate_final_sus_points   # Dynamic multiplier system
 import library.sus_phrases   # Import sus phrases dynamically
 import library.gay_police_responses
 import library.gay_army_responses 
