@@ -4,15 +4,27 @@ from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
 from gyatt_logic import calculate_susness, escalate_and_respond, add_sus_phrase, remove_sus_phrase, list_sus_phrases
-from flask import Flask, render_template
-import asyncio
+from flask import Flask
 import threading
+import asyncio
 
 # Load environment variables
 load_dotenv()
+
+# Retrieve Discord bot token from environment variables
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 if not DISCORD_BOT_TOKEN:
     raise ValueError("DISCORD_BOT_TOKEN not found in environment variables.")
+
+# Retrieve the Discord server ID from environment variables
+GUILD_ID = os.getenv("GUILD_ID")
+if not GUILD_ID:
+    raise ValueError("GUILD_ID not found in environment variables. Make sure to set it in your Render environment or .env file")
+else:
+    try:
+        GUILD_ID = int(GUILD_ID)  # Convert to integer if it's a string
+    except ValueError:
+        raise ValueError("GUILD_ID must be an integer. Please check your Render environment or .env file.")
 
 # Discord Bot Setup
 intents = discord.Intents.default()
@@ -28,26 +40,33 @@ app = Flask(__name__)
 def home():
     return "Bot is running!"
 
+def run_server():
+    # Get the PORT from environment variables (default to 8080 if not set)
+    port = int(os.getenv("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
+# Start the web server in a separate thread
+threading.Thread(target=run_server, daemon=True).start()
+
 async def bot_main():
     """Main function to run the Discord bot."""
     async with bot:
-        bot.tree.copy_global_to(guild=None)  # Ensure commands are global
-        await bot.start(DISCORD_BOT_TOKEN)
+        # Sync slash commands to the specified guild
+        try:
+            guild = discord.Object(id=GUILD_ID) # Now using GUILD_ID from environment variables
+            tree.copy_global_to(guild=guild)
+            synced = await tree.sync(guild=guild)
 
-def run_server():
-    """Runs the Flask web server."""
-    port = int(os.getenv("PORT", 8080))
-    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+            print(f"Successfully synced {len(synced)} commands to guild {GUILD_ID}")
+        except Exception as e:
+            print(f"Error syncing slash commands to guild {GUILD_ID}: {e}")
+
+        await bot.start(DISCORD_BOT_TOKEN)
 
 @bot.event
 async def on_ready():
     """Event triggered when the bot is ready."""
     print(f"We have logged in as {bot.user}")
-    try:
-        await tree.sync()  # Sync slash commands globally
-        print("Slash commands synced successfully!")
-    except Exception as e:
-        print(f"Error syncing slash commands: {e}")
 
 @bot.event
 async def on_message(message):
@@ -55,8 +74,10 @@ async def on_message(message):
     if message.author == bot.user or not message.content.strip():
         return
 
+    # Calculate susness dynamically (delegated to gyatt_logic.py)
     sus_score = calculate_susness(message.content)
 
+    # If a sus score is detected, escalate and respond accordingly
     if sus_score > 0:
         await escalate_and_respond(message.author, message, sus_score)
 
@@ -87,4 +108,3 @@ if __name__ == "__main__":
     
     # Run the Discord bot in the main thread
     asyncio.run(bot_main())
-    
