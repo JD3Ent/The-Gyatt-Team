@@ -2,16 +2,16 @@ import random
 import spacy  # Import spaCy for NLP
 import discord
 import asyncio
-from calculations import calculate_final_sus_points  # Dynamic multiplier system
-from library.sus_phrases import SUS_PHRASES  # Import sus phrases dynamically
-from library.gay_police_responses import GAY_POLICE_FINAL_RESPONSES, GAY_POLICE_ESCALATION_RESPONSES
-from library.gay_army_responses import GAY_ARMY_FINAL_RESPONSES, GAY_ARMY_ESCALATION_RESPONSES
-from library.gayvie_responses import GAYVIE_FINAL_RESPONSES, GAYVIE_ESCALATION_RESPONSES
-from library.gay_airforce_responses import GAY_AIRFORCE_FINAL_RESPONSES, GAY_AIRFORCE_ESCALATION_RESPONSES
-from bots.gay_police import gay_police_interaction
-from bots.gay_army import gay_army_interaction
-from bots.gayvie import gayvie_interaction
-from bots.gay_airforce import gay_airforce_interaction
+import calculations   # Dynamic multiplier system
+import library.sus_phrases   # Import sus phrases dynamically
+import library.gay_police_responses
+import library.gay_army_responses 
+import library.gayvie_responses 
+import library.gay_airforce_responses 
+import bots.gay_police 
+import bots.gay_army 
+import bots.gayvie 
+import bots.gay_airforce 
 
 # Load spaCy's medium-sized English model
 nlp = spacy.load("en_core_web_md")
