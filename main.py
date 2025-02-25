@@ -1,7 +1,6 @@
 import os
 import discord
 from discord.ext import commands
-from discord import app_commands
 from dotenv import load_dotenv
 from gyatt_logic import calculate_susness, escalate_and_respond, add_sus_phrase, remove_sus_phrase, list_sus_phrases
 from flask import Flask
@@ -26,11 +25,22 @@ else:
     except ValueError:
         raise ValueError("GUILD_ID must be an integer. Please check your Render environment or .env file.")
 
+# Retrieve the Discord application ID from environment variables
+APPLICATION_ID = os.getenv("APPLICATION_ID")
+if not APPLICATION_ID:
+    raise ValueError("APPLICATION_ID not found in environment variables. Make sure to set it in your Render environment or .env file")
+else:
+    try:
+        APPLICATION_ID = int(APPLICATION_ID)  # Convert to integer if it's a string
+    except ValueError:
+        raise ValueError("APPLICATION_ID must be an integer. Please check your Render environment or .env file.")
+
+
 # Discord Bot Setup
 intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, application_id=APPLICATION_ID)
 tree = bot.tree
 
 # Flask Web Server Setup
