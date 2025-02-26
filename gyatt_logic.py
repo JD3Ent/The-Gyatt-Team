@@ -2,18 +2,19 @@ import random
 import spacy  # Import spaCy for NLP
 import discord
 import asyncio
-from calculations import calculate_final_sus_points   # Dynamic multiplier system
-import library.sus_phrases   # Import sus phrases dynamically
+import calculations  # Dynamic multiplier system
+import library.sus_phrases  # Import sus phrases dynamically
 import library.gay_police_responses
-import library.gay_army_responses 
-import library.gayvie_responses 
-import library.gay_airforce_responses 
-import bots.gay_police 
-import bots.gay_army 
-import bots.gayvie 
-import bots.gay_airforce 
+import library.gay_army_responses
+import library.gayvie_responses
+import library.gay_airforce_responses
+import bots.gay_police
+import bots.gay_army
+import bots.gayvie
+import bots.gay_airforce
+import os
 
-#intialize active_interactions
+# Initialize active_interactions (now with image tracking)
 active_interactions = {}
 
 def add_sus_phrase(phrase, score):
@@ -44,7 +45,6 @@ GAY_POLICE_THRESHOLD = 5
 GAY_ARMY_NAVY_THRESHOLD = 10
 GAY_AIRFORCE_THRESHOLD = 15
 
-
 ### Susness Calculation ###
 def calculate_susness(message):
     """
@@ -74,9 +74,31 @@ def calculate_susness(message):
 
         # Add the highest score from this sentence to the total score
         sus_score += sentence_score
-        
+
     return sus_score
 
+def load_police_records():
+    """Loads police records from file, creates file if it doesn't exist."""
+    try:
+        with open(POLICE_RECORD_FILE, "r") as file:
+            # Try to read the contents of the file and parse them as a dictionary
+            try:
+                return eval(file.read())  # WARNING: Using eval can be risky
+            except (SyntaxError, NameError):
+                # Handle cases where the file might be empty or contain invalid syntax
+                return {}  # Return an empty dictionary in case of error
+    except FileNotFoundError:
+        # If the file does not exist, create it and return an empty dictionary
+        print("Police record file not found, creating a new one.")
+        return {}  # Handle the case where the file does not exist
+
+def log_nuked_user(user_id, user_name, total_points):
+    """Logs a nuked user and their total points to the nuked record file."""
+    try:
+        with open(NUKED_RECORD_FILE, "a") as file:
+            file.write(f"User ID: {user_id}, User Name: {user_name}, Total Points: {total_points}\n")
+    except Exception as e:
+        print(f"Error logging nuked user: {e}")
 
 ### Escalation Logic ###
 async def escalate_and_respond(user, message, sus_score):
@@ -93,7 +115,12 @@ async def escalate_and_respond(user, message, sus_score):
 
     # Check if user is in active interactions
     if user_id not in active_interactions:
-        active_interactions[user_id] = {"sus_score": 0, "timeout": None}
+        # Initialize interaction data, including image tracking
+        active_interactions[user_id] = {
+            "sus_score": 0,
+            "timeout": None,
+            "spoken_branches": set()  # Track which branches have spoken (sent image)
+        }
 
     # Get the current total points from police records
     try:
@@ -104,25 +131,48 @@ async def escalate_and_respond(user, message, sus_score):
         total_points = 0  # Ensure total_points is 0 in case of error
 
     # Update sus score for this interaction (with multiplier logic)
-    final_sus_score = calculate_final_sus_points(sus_score, total_points)  # Pass total_points
+    final_sus_score = calculations.calculate_final_sus_points(sus_score, total_points)  # Pass total_points
     active_interactions[user_id]["sus_score"] += final_sus_score
-    current_interaction_sus_points = active_interactions[user_id]["sus_score"] # Update current interaction value
+    current_interaction_sus_points = active_interactions[user_id]["sus_score"]  # Update current interaction value
 
     # Determine response level based on total sus score in this interaction
-    if current_interaction_sus_points < GAY_ARMY_NAVY_THRESHOLD: # Switch all to use current interaction sus points
-        result = await gay_police_interaction(user, message, active_interactions[user_id])
+    if current_interaction_sus_points < GAY_ARMY_NAVY_THRESHOLD:  # Switch all to use current interaction sus points
+        branch_name = "gay_police"
+        result = await bots.gay_police.gay_police_interaction(user, message, active_interactions[user_id])
+        if branch_name not in active_interactions[user_id]["spoken_branches"]:  # First time this branch is speaking?
+            await send_image(message, branch_name)
+            active_interactions[user_id]["spoken_branches"].add(branch_name)  # Mark as spoken
+
         if result == "escalate":
             await escalate_to_backup(user, message)
+
     elif current_interaction_sus_points < GAY_AIRFORCE_THRESHOLD:
-        result = await gay_army_interaction(user, message, active_interactions[user_id])
+        branch_name = "gay_army"
+        result = await bots.gay_army.gay_army_interaction(user, message, active_interactions[user_id])
+        if branch_name not in active_interactions[user_id]["spoken_branches"]:  # First time this branch is speaking?
+            await send_image(message, branch_name)
+            active_interactions[user_id]["spoken_branches"].add(branch_name)  # Mark as spoken
+
         if result == "full_attack":
             await escalate_to_backup(user, message)
+
     elif current_interaction_sus_points >= GAY_AIRFORCE_THRESHOLD:
-        result = await gay_airforce_interaction(user, message, active_interactions[user_id])
+        branch_name = "gay_airforce"
+        result = await bots.gay_airforce.gay_airforce_interaction(user, message, active_interactions[user_id])
+        if branch_name not in active_interactions[user_id]["spoken_branches"]:  # First time this branch is speaking?
+            await send_image(message, branch_name)
+            active_interactions[user_id]["spoken_branches"].add(branch_name)  # Mark as spoken
+
         if result == "final_strike":
             await final_escalation(user, message)
+
     else:
-        result = await gayvie_interaction(user, message, active_interactions[user_id])
+        branch_name = "gayvie"
+        result = await bots.gayvie.gayvie_interaction(user, message, active_interactions[user_id])
+        if branch_name not in active_interactions[user_id]["spoken_branches"]:  # First time this branch is speaking?
+            await send_image(message, branch_name)
+            active_interactions[user_id]["spoken_branches"].add(branch_name)  # Mark as spoken
+
         if result == "full_assault":
             await escalate_to_backup(user, message)
 
@@ -140,7 +190,6 @@ async def escalate_and_respond(user, message, sus_score):
     task = asyncio.create_task(reset_interaction())
     active_interactions[user_id]["timeout"] = task
 
-
 async def final_escalation(user, message):
     """
     Handles the ultimate escalation where all branches of the Gyatt_Team interact together.
@@ -151,10 +200,10 @@ async def final_escalation(user, message):
     global active_interactions  # Access the global dictionary
 
     # Responses from each branch (now using FINAL_RESPONSES)
-    police_response = random.choice(GAY_POLICE_FINAL_RESPONSES)
-    army_response = random.choice(GAY_ARMY_FINAL_RESPONSES)
-    navy_response = random.choice(GAYVIE_FINAL_RESPONSES)
-    airforce_response = random.choice(GAY_AIRFORCE_FINAL_RESPONSES)
+    police_response = random.choice(library.gay_police_responses.GAY_POLICE_FINAL_RESPONSES)
+    army_response = random.choice(library.gay_army_responses.GAY_ARMY_FINAL_RESPONSES)
+    navy_response = random.choice(library.gayvie_responses.GAYVIE_FINAL_RESPONSES)
+    airforce_response = random.choice(library.gay_airforce_responses.GAY_AIRFORCE_FINAL_RESPONSES)
 
     # Coordinated final attack messages
     await message.channel.send(f"🚨 Gay Police: {police_response} {user.mention}")
@@ -168,7 +217,7 @@ async def final_escalation(user, message):
     # Final bombastic declaration and log the user as nuked!
     await asyncio.sleep(1)
     await message.channel.send(
-        f"🌈 ALL BRANCHES DEPLOYED! The Gyatt_Team has unleashed its full power and gang banged {user.mention}! "
+        f"🌈 ALL BRANCHES DEPLOYED! The Gyatt_Team has unleashed its full power on {user.mention}! "
         f"Susness eradicated! 💥"
     )
 
@@ -177,17 +226,15 @@ async def final_escalation(user, message):
     total_points = police_records.get(str(user.id), 0)
     log_nuked_user(user.id, user.name, total_points)
 
-    # Clear the interaction
+    # Clear the interaction, including clearing spoken_branches
     user_id = str(user.id)  # Get the user ID as a string
     if user_id in active_interactions:
         del active_interactions[user_id]
-
 
 ### Image Handling ###
 async def send_image(message, branch_name):
     """
     Sends an image corresponding to the branch triggering the interaction.
-
     Args:
         message: The Discord message object.
         branch_name: The name of the branch (e.g., 'gay_police', 'gay_army').
