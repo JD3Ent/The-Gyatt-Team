@@ -82,7 +82,6 @@ def calculate_susness(message):
 async def escalate_and_respond(user, message, sus_score):
     """
     Handles escalation and dynamic replies based on susness score.
-    
     Args:
         user: The Discord user object.
         message: The Discord message object.
@@ -94,10 +93,19 @@ async def escalate_and_respond(user, message, sus_score):
     if user.id not in active_interactions:
         active_interactions[user.id] = {"sus_score": 0, "timeout": None}
 
-    # Update sus score for this interaction (with multiplier logic)
-    final_sus_score = calculate_final_sus_points(sus_score)
-    active_interactions[user.id]["sus_score"] += final_sus_score
+    # Get the current total points
+    total_points = 0
+    try:
+        police_records = load_police_records()
+        total_points = police_records.get(str(user.id), 0)  # Use 0 as default if not found
+    except Exception as e:
+        print(f"Error loading police records: {e}")
+        # Handle file not found error or other potential issues gracefully
+        total_points = 0  # Set to 0 in case of error to avoid further issues
 
+    # Update sus score for this interaction (with multiplier logic)
+    final_sus_score = calculate_final_sus_points(sus_score, total_points)  # CORRECTED CALL
+    active_interactions[user.id]["sus_score"] += final_sus_score
     total_sus_score = active_interactions[user.id]["sus_score"]
 
     # Determine response level based on total sus score in this interaction
@@ -105,16 +113,14 @@ async def escalate_and_respond(user, message, sus_score):
         result = await gay_police_interaction(user, message, active_interactions[user.id])
         if result == "escalate":
             await escalate_to_backup(user, message)
-
     elif total_sus_score < GAY_AIRFORCE_THRESHOLD:
         result = await gay_army_interaction(user, message, active_interactions[user.id])
         if result == "full_attack":
             await escalate_to_backup(user, message)
-        else:
-            result = await gayvie_interaction(user, message, active_interactions[user.id])
-            if result == "full_assault":
-                await escalate_to_backup(user, message)
-
+    else:
+        result = await gayvie_interaction(user, message, active_interactions[user.id])
+        if result == "full_assault":
+            await escalate_to_backup(user, message)
     elif total_sus_score >= GAY_AIRFORCE_THRESHOLD:
         result = await gay_airforce_interaction(user, message, active_interactions[user.id])
         if result == "final_strike":
