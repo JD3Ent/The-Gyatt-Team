@@ -13,7 +13,7 @@ import bots.gay_army
 import bots.gayvie 
 import bots.gay_airforce 
 
-# Initialize active_interactions
+#intialize active_interactions
 active_interactions = {}
 
 def add_sus_phrase(phrase, score):
@@ -89,51 +89,67 @@ async def escalate_and_respond(user, message, sus_score):
     """
     global active_interactions
 
-    # Check if user is in active interactions
-    if user.id not in active_interactions:
-        active_interactions[user.id] = {"sus_score": 0, "timeout": None}
+    user_id = str(user.id)
 
-    # Get the current total points
-    total_points = 0
+    # Check if user is in active interactions
+    if user_id not in active_interactions:
+        active_interactions[user_id] = {"sus_score": 0, "timeout": None}
+
+    # Get the current total points from police records
     try:
         police_records = load_police_records()
-        total_points = police_records.get(str(user.id), 0)  # Use 0 as default if not found
+        total_points = police_records.get(user_id, 0)  # Use 0 as default if not found
     except Exception as e:
         print(f"Error loading police records: {e}")
-        # Handle file not found error or other potential issues gracefully
-        total_points = 0  # Set to 0 in case of error to avoid further issues
+        total_points = 0  # Ensure total_points is 0 in case of error
 
     # Update sus score for this interaction (with multiplier logic)
-    final_sus_score = calculate_final_sus_points(sus_score, total_points)  # CORRECTED CALL
-    active_interactions[user.id]["sus_score"] += final_sus_score
-    total_sus_score = active_interactions[user.id]["sus_score"]
+    final_sus_score = calculate_final_sus_points(sus_score, total_points)  # Pass total_points
+    active_interactions[user_id]["sus_score"] += final_sus_score
+    current_interaction_sus_points = active_interactions[user_id]["sus_score"] # Update current interaction value
 
     # Determine response level based on total sus score in this interaction
-    if total_sus_score < GAY_ARMY_NAVY_THRESHOLD:
-        result = await gay_police_interaction(user, message, active_interactions[user.id])
+    if current_interaction_sus_points < GAY_ARMY_NAVY_THRESHOLD: # Switch all to use current interaction sus points
+        result = await gay_police_interaction(user, message, active_interactions[user_id])
         if result == "escalate":
             await escalate_to_backup(user, message)
-    elif total_sus_score < GAY_AIRFORCE_THRESHOLD:
-        result = await gay_army_interaction(user, message, active_interactions[user.id])
+    elif current_interaction_sus_points < GAY_AIRFORCE_THRESHOLD:
+        result = await gay_army_interaction(user, message, active_interactions[user_id])
         if result == "full_attack":
             await escalate_to_backup(user, message)
-    elif total_sus_score >= GAY_AIRFORCE_THRESHOLD:
-        result = await gay_airforce_interaction(user, message, active_interactions[user.id])
+    elif current_interaction_sus_points >= GAY_AIRFORCE_THRESHOLD:
+        result = await gay_airforce_interaction(user, message, active_interactions[user_id])
         if result == "final_strike":
             await final_escalation(user, message)
     else:
-        result = await gayvie_interaction(user, message, active_interactions[user.id])
+        result = await gayvie_interaction(user, message, active_interactions[user_id])
         if result == "full_assault":
             await escalate_to_backup(user, message)
+
+    async def reset_interaction():
+        await asyncio.sleep(60)  # Wait for 60 seconds of inactivity
+        if user_id in active_interactions:
+            del active_interactions[user_id]
+            print(f"Interaction reset for user {user_id} due to inactivity.")
+
+    # Reset existing timeout task if it exists
+    if active_interactions[user_id]["timeout"]:
+        active_interactions[user_id]["timeout"].cancel()
+
+    # Start a new timeout task
+    task = asyncio.create_task(reset_interaction())
+    active_interactions[user_id]["timeout"] = task
+
 
 async def final_escalation(user, message):
     """
     Handles the ultimate escalation where all branches of the Gyatt_Team interact together.
-    
     Args:
         user: The user being targeted.
         message: The Discord message object.
     """
+    global active_interactions  # Access the global dictionary
+
     # Responses from each branch (now using FINAL_RESPONSES)
     police_response = random.choice(GAY_POLICE_FINAL_RESPONSES)
     army_response = random.choice(GAY_ARMY_FINAL_RESPONSES)
@@ -152,7 +168,7 @@ async def final_escalation(user, message):
     # Final bombastic declaration and log the user as nuked!
     await asyncio.sleep(1)
     await message.channel.send(
-        f"🌈 ALL BRANCHES DEPLOYED! The Gyatt_Team has unleashed its full power on {user.mention}! "
+        f"🌈 ALL BRANCHES DEPLOYED! The Gyatt_Team has unleashed its full power and gang banged {user.mention}! "
         f"Susness eradicated! 💥"
     )
 
@@ -160,6 +176,11 @@ async def final_escalation(user, message):
     police_records = load_police_records()
     total_points = police_records.get(str(user.id), 0)
     log_nuked_user(user.id, user.name, total_points)
+
+    # Clear the interaction
+    user_id = str(user.id)  # Get the user ID as a string
+    if user_id in active_interactions:
+        del active_interactions[user_id]
 
 
 ### Image Handling ###
