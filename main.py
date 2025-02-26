@@ -61,6 +61,22 @@ threading.Thread(target=run_server, daemon=True).start()
 # Remove bot_main function
 # Remove the asyncio.run(bot_main()) from if __name__ == "__main__":
 
+async def handle_commands(interaction, response_func, *args):
+    """Handles command execution with rate limit handling."""
+    try:
+        await response_func(interaction, *args)
+    except discord.errors.HTTPException as e:
+        if e.status == 429:
+            print(f"Rate limit exceeded: {e}")
+            retry_after = e.retry_after if hasattr(e, 'retry_after') else 5  # Default to 5 seconds
+            print(f"Waiting {retry_after} seconds before retrying...")
+            await asyncio.sleep(retry_after)
+            await handle_commands(interaction, response_func, *args)  # Retry
+        else:
+            print(f"An unexpected error occurred: {e}")
+            if interaction and hasattr(interaction, 'response') and not interaction.response.is_done():
+                await interaction.response.send_message("An error occurred while processing your command.", ephemeral=True)
+
 @bot.event
 async def on_ready():
     """Event triggered when the bot is ready."""
@@ -73,8 +89,15 @@ async def on_ready():
         synced = await tree.sync(guild=guild)
 
         print(f"Successfully synced {len(synced)} commands to guild {GUILD_ID}")
-    except Exception as e:
-        print(f"Error syncing slash commands to guild {GUILD_ID}: {e}")
+    except discord.errors.HTTPException as e:
+        if e.status == 429:
+            print(f"Rate limit exceeded while syncing commands: {e}")
+            retry_after = e.retry_after if hasattr(e, 'retry_after') else 5
+            print(f"Waiting {retry_after} seconds before retrying...")
+            await asyncio.sleep(retry_after)
+            await on_ready()  # Retry the sync
+        except Exception as e:
+            print(f"Error syncing slash commands to guild {GUILD_ID}: {e}")
 
 @bot.event
 async def on_message(message):
@@ -87,12 +110,25 @@ async def on_message(message):
 
     # If a sus score is detected, escalate and respond accordingly
     if sus_score > 0:
-        await escalate_and_respond(message.author, message, sus_score)
+        try:
+            await escalate_and_respond(message.author, message, sus_score)
+        except discord.errors.HTTPException as e:
+            if e.status == 429:
+                print(f"Rate limit exceeded in on_message: {e}")
+                retry_after = e.retry_after if hasattr(e, 'retry_after') else 5
+                print(f"Waiting {retry_after} seconds before retrying...")
+                await asyncio.sleep(retry_after)
+                await on_message(message)  # Retry processing the message
+            else:
+                print(f"An unexpected error occurred in on_message: {e}")
 
 # Slash Command: Add a New Sus Phrase
 @tree.command(name="add_sus_phrase", description="Add a new phrase to the sus library.")
 async def add_sus_phrase_command(interaction: discord.Interaction, phrase: str, score: float):
     """Adds a new phrase to the SUS_PHRASES library."""
+    await handle_commands(interaction, _add_sus_phrase_command, phrase, score)
+
+async def _add_sus_phrase_command(interaction: discord.Interaction, phrase: str, score: float):
     response = add_sus_phrase(phrase, score)  # Delegated to gyatt_logic.py
     await interaction.response.send_message(response)
 
@@ -100,6 +136,9 @@ async def add_sus_phrase_command(interaction: discord.Interaction, phrase: str, 
 @tree.command(name="remove_sus_phrase", description="Remove a phrase from the sus library.")
 async def remove_sus_phrase_command(interaction: discord.Interaction, phrase: str):
     """Removes a phrase from the SUS_PHRASES library."""
+    await handle_commands(interaction, _remove_sus_phrase_command, phrase)
+
+async def _remove_sus_phrase_command(interaction: discord.Interaction, phrase: str):
     response = remove_sus_phrase(phrase)  # Delegated to gyatt_logic.py
     await interaction.response.send_message(response)
 
@@ -107,12 +146,15 @@ async def remove_sus_phrase_command(interaction: discord.Interaction, phrase: st
 @tree.command(name="list_sus_phrases", description="List all phrases in the sus library.")
 async def list_sus_phrases_command(interaction: discord.Interaction):
     """Lists all phrases in the SUS_PHRASES library."""
+    await handle_commands(interaction, _list_sus_phrases_command)
+
+async def _list_sus_phrases_command(interaction: discord.Interaction):
     response = list_sus_phrases()  # Delegated to gyatt_logic.py
     await interaction.response.send_message(response)
 
 if __name__ == "__main__":
     # Start the Flask web server in a separate thread
     threading.Thread(target=run_server, daemon=True).start()
-    
+
     # Run the Discord bot in the main thread
     bot.run(DISCORD_BOT_TOKEN) # call bot.run directly
