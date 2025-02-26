@@ -96,9 +96,7 @@ async def on_ready():
             print(f"Waiting {retry_after} seconds before retrying...")
             await asyncio.sleep(retry_after)
             await on_ready()  # Retry the sync
-        except Exception as e:
-            print(f"Error syncing slash commands to guild {GUILD_ID}: {e}")
-
+        
 @bot.event
 async def on_message(message):
     """Event triggered when a message is sent."""
