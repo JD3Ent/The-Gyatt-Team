@@ -74,7 +74,7 @@ def calculate_susness(message):
 
         # Add the highest score from this sentence to the total score
         sus_score += sentence_score
-
+        
     return sus_score
 
 
