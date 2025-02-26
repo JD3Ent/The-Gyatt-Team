@@ -117,15 +117,14 @@ async def escalate_and_respond(user, message, sus_score):
         result = await gay_army_interaction(user, message, active_interactions[user.id])
         if result == "full_attack":
             await escalate_to_backup(user, message)
-    else:
-        result = await gayvie_interaction(user, message, active_interactions[user.id])
-        if result == "full_assault":
-            await escalate_to_backup(user, message)
     elif total_sus_score >= GAY_AIRFORCE_THRESHOLD:
         result = await gay_airforce_interaction(user, message, active_interactions[user.id])
         if result == "final_strike":
             await final_escalation(user, message)
-
+    else:
+        result = await gayvie_interaction(user, message, active_interactions[user.id])
+        if result == "full_assault":
+            await escalate_to_backup(user, message)
 
 async def final_escalation(user, message):
     """
